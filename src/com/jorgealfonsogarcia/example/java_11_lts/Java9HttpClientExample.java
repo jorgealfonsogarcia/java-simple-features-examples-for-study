@@ -24,6 +24,8 @@
 package com.jorgealfonsogarcia.example.java_11_lts;
 
 import java.io.IOException;
+import java.net.Authenticator;
+import java.net.PasswordAuthentication;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -33,6 +35,9 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -50,6 +55,10 @@ public class Java9HttpClientExample {
 
     private static final String MY_REQUEST_TRACE_ID_HEADER = "my-request-trace-id";
 
+    private static final String CONTENT_TYPE_HEADER = "Content-Type";
+
+    private static final String APPLICATION_JSON = "application/json";
+
     private static final int TIMEOUT_SECONDS = 2;
 
     /**
@@ -64,7 +73,12 @@ public class Java9HttpClientExample {
             executeGetExample();
 
             executePostExample();
-        } catch (URISyntaxException | IOException e) {
+
+            executeAsyncPutExample();
+
+            executeBasicAuthExample();
+        } catch (URISyntaxException | IOException | ExecutionException
+                | TimeoutException e) {
             LOGGER.log(Level.WARNING, "Exception", e);
         } catch (InterruptedException e) {
             LOGGER.log(Level.WARNING, "Interrupted!", e);
@@ -72,7 +86,8 @@ public class Java9HttpClientExample {
         }
     }
 
-    private static void executeGetExample() throws URISyntaxException, IOException, InterruptedException {
+    private static void executeGetExample()
+            throws URISyntaxException, IOException, InterruptedException {
         final var httpRequest = HttpRequest.newBuilder()
                 .uri(new URI("https://postman-echo.com/status/400"))
                 .GET()
@@ -89,7 +104,8 @@ public class Java9HttpClientExample {
         printBody(httpResponse.body());
     }
 
-    private static void executePostExample() throws URISyntaxException, IOException, InterruptedException {
+    private static void executePostExample()
+            throws URISyntaxException, IOException, InterruptedException {
         final var httpRequest = HttpRequest.newBuilder()
                 .uri(new URI("https://postman-echo.com/post"))
                 .POST(BodyPublishers.ofString("""
@@ -101,7 +117,7 @@ public class Java9HttpClientExample {
                             }
                         }"""))
                 .header(MY_REQUEST_TRACE_ID_HEADER, UUID.randomUUID().toString())
-                .header("Content-Type", "application/json")
+                .header(CONTENT_TYPE_HEADER, APPLICATION_JSON)
                 .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
                 .build();
 
@@ -114,10 +130,69 @@ public class Java9HttpClientExample {
         printBody(httpResponse.body());
     }
 
+    private static void executeBasicAuthExample()
+            throws URISyntaxException, IOException, InterruptedException {
+        final var httpRequest = HttpRequest.newBuilder()
+                .uri(new URI("https://postman-echo.com/basic-auth"))
+                .GET()
+                .header(MY_REQUEST_TRACE_ID_HEADER, UUID.randomUUID().toString())
+                .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
+                .build();
+
+        final var authenticator = new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication("postman",
+                        "password".toCharArray());
+            }
+        };
+
+        final var httpClient = HttpClient.newBuilder()
+                .authenticator(authenticator)
+                .build();
+
+        final var httpResponse = httpClient.send(httpRequest, BodyHandlers.ofString());
+
+        printHeaders(httpResponse.headers());
+        printBody(httpResponse.body());
+    }
+
+    private static void executeAsyncPutExample()
+            throws URISyntaxException, InterruptedException, ExecutionException,
+            TimeoutException {
+        final var httpRequest = HttpRequest.newBuilder()
+                .uri(new URI("https://postman-echo.com/put"))
+                .PUT(BodyPublishers.ofString("""
+                        {
+                            "employee": {
+                                "name": "John Doe",
+                                "salary": 26000,
+                                "married": false
+                            }
+                        }"""))
+                .header(MY_REQUEST_TRACE_ID_HEADER, UUID.randomUUID().toString())
+                .header(CONTENT_TYPE_HEADER, APPLICATION_JSON)
+                .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
+                .build();
+
+        final var httpClient = HttpClient.newBuilder()
+                .build();
+
+        final var future = httpClient.sendAsync(httpRequest, BodyHandlers.ofString());
+
+        future.thenAccept(httpResponse -> {
+            printHeaders(httpResponse.headers());
+            printBody(httpResponse.body());
+        });
+
+        future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
     private static void printHeaders(final HttpHeaders httpHeaders) {
         httpHeaders.map().entrySet().stream()
-                .map(entry -> String.format("HEADER\t%s:\t%s", entry.getKey(), entry.getValue().stream()
-                        .collect(Collectors.joining(","))))
+                .map(entry -> String.format("HEADER\t%s:\t%s",
+                        entry.getKey(), entry.getValue().stream()
+                                .collect(Collectors.joining(","))))
                 .forEach(System.out::println);
     }
 
