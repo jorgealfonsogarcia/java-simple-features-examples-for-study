@@ -33,7 +33,16 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Java9ReactiveStreamsExample
+ * An example class demonstrating the usage of Reactive Streams API in Java 9.
+ * This class provides a simple implementation of a Publisher that emits a
+ * sequence of values,and a Subscriber that consumes and prints the emitted
+ * values.
+ * The Reactive Streams API provides a standardized way for asynchronous stream
+ * processing with backpressure support, allowing for efficient and scalable
+ * processing of large data sets.
+ * 
+ * @author Jorge Garcia
+ * @since 17
  */
 public final class Java9ReactiveStreamsExample {
 
